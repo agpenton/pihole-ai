@@ -24,7 +24,9 @@ from pihole_analyzer.threat_feeds import (
 class FakeResult:
     """Small async SQLAlchemy result substitute for unit tests."""
 
-    def __init__(self, rows: list[ThreatIntelligence] | None = None, rowcount: int = 0) -> None:
+    def __init__(
+        self, rows: list[ThreatIntelligence] | None = None, rowcount: int = 0
+    ) -> None:
         self._rows = rows or []
         self.rowcount = rowcount
 
@@ -38,7 +40,9 @@ class FakeResult:
 class FakeSession:
     """Capture database operations without requiring PostgreSQL."""
 
-    def __init__(self, existing: list[ThreatIntelligence] | None = None, deactivated: int = 0) -> None:
+    def __init__(
+        self, existing: list[ThreatIntelligence] | None = None, deactivated: int = 0
+    ) -> None:
         self.existing = existing or []
         self.deactivated = deactivated
         self.added: list[ThreatIntelligence] = []
@@ -93,7 +97,9 @@ def make_transport(payload: Any, status_code: int = 200) -> httpx.MockTransport:
 @pytest.mark.asyncio
 async def test_adapter_fetches_and_normalizes_structured_feed() -> None:
     """A JSON envelope is normalized and duplicate indicators keep max confidence."""
-    config = ThreatFeedConfig(name="test-feed", url="https://feeds.example.test/list.json", category="malware")
+    config = ThreatFeedConfig(
+        name="test-feed", url="https://feeds.example.test/list.json", category="malware"
+    )
     transport = make_transport(
         {
             "entries": [
@@ -106,13 +112,17 @@ async def test_adapter_fetches_and_normalizes_structured_feed() -> None:
     async with httpx.AsyncClient(transport=transport) as client:
         indicators = await ThreatFeedAdapter(config, client=client).fetch()
 
-    assert indicators == [indicators[0].__class__("bad.example", "malware", 0.9, "test-feed")]
+    assert indicators == [
+        indicators[0].__class__("bad.example", "malware", 0.9, "test-feed")
+    ]
 
 
 @pytest.mark.asyncio
 async def test_adapter_rejects_redirects() -> None:
     """Feed requests do not follow redirects to an unconfigured host."""
-    config = ThreatFeedConfig(name="test-feed", url="https://feeds.example.test/list.json")
+    config = ThreatFeedConfig(
+        name="test-feed", url="https://feeds.example.test/list.json"
+    )
     transport = httpx.MockTransport(
         lambda request: httpx.Response(
             302,
@@ -128,13 +138,17 @@ async def test_adapter_rejects_redirects() -> None:
 
 def test_normalize_feed_entry_rejects_invalid_domain() -> None:
     """Malformed entries cannot enter the threat-intelligence table."""
-    config = ThreatFeedConfig(name="test-feed", url="https://feeds.example.test/list.json")
+    config = ThreatFeedConfig(
+        name="test-feed", url="https://feeds.example.test/list.json"
+    )
 
     with pytest.raises(ThreatFeedError, match="Invalid feed domain"):
         normalize_feed_entry({"domain": "https://bad.example/path"}, config)
 
 
-def test_load_feed_configs_from_analyzer_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_load_feed_configs_from_analyzer_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Feed population remains disabled unless the analyzer feed setting is set."""
     monkeypatch.setenv(
         "ANALYZER_THREAT_FEEDS",
@@ -168,7 +182,11 @@ async def test_upsert_reactivates_and_expires_records() -> None:
         [
             normalize_feed_entry(
                 {"domain": "bad.example", "confidence": 0.9},
-                ThreatFeedConfig(name="test-feed", url="https://feeds.example.test/list.json", category="malware"),
+                ThreatFeedConfig(
+                    name="test-feed",
+                    url="https://feeds.example.test/list.json",
+                    category="malware",
+                ),
             )
         ],
         source="test-feed",
@@ -194,7 +212,9 @@ async def test_refresh_isolates_http_failure_without_touching_database() -> None
     async with httpx.AsyncClient(transport=transport) as client:
         results = await ThreatFeedRefresher(
             [config],
-            session_factory=cast(async_sessionmaker[AsyncSession], SessionFactory(session)),
+            session_factory=cast(
+                async_sessionmaker[AsyncSession], SessionFactory(session)
+            ),
             client=client,
         ).refresh()
 

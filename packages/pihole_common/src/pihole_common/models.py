@@ -34,12 +34,16 @@ class DnsEvent(Base):
     __tablename__ = "dns_events"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    event_id: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    event_id: Mapped[str] = mapped_column(
+        String(64), unique=True, nullable=False, index=True
+    )
     client_ip: Mapped[str] = mapped_column(String(45), nullable=False, index=True)
     domain: Mapped[str] = mapped_column(String(253), nullable=False, index=True)
     query_type: Mapped[str] = mapped_column(String(10), nullable=False, default="A")
     response: Mapped[str | None] = mapped_column(String(45), nullable=True)
-    response_code: Mapped[str] = mapped_column(String(10), nullable=False, default="NOERROR")
+    response_code: Mapped[str] = mapped_column(
+        String(10), nullable=False, default="NOERROR"
+    )
     client_name: Mapped[str | None] = mapped_column(String(253), nullable=True)
     chain: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -48,9 +52,7 @@ class DnsEvent(Base):
         default=_utcnow,
     )
 
-    __table_args__ = (
-        Index("ix_dns_events_domain_created", "domain", "created_at"),
-    )
+    __table_args__ = (Index("ix_dns_events_domain_created", "domain", "created_at"),)
 
     assessments: Mapped[list[DomainAssessment]] = relationship(
         "DomainAssessment",
@@ -219,9 +221,7 @@ class LlmUsage(Base):
         onupdate=_utcnow,
     )
 
-    __table_args__ = (
-        UniqueConstraint("date", name="uq_llm_usage_date"),
-    )
+    __table_args__ = (UniqueConstraint("date", name="uq_llm_usage_date"),)
 
 
 class LlmCache(Base):

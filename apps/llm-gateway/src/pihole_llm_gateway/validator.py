@@ -52,15 +52,21 @@ class ResponseValidator:
         # Validate types and ranges
         is_malicious = data["is_malicious"]
         if not isinstance(is_malicious, bool):
-            raise TypeError(f"is_malicious must be bool, got {type(is_malicious).__name__}")
+            raise TypeError(
+                f"is_malicious must be bool, got {type(is_malicious).__name__}"
+            )
 
         reason = data["reason"]
         if not isinstance(reason, str) or not reason.strip():
-            raise TypeError(f"reason must be a non-empty string, got {type(reason).__name__}")
+            raise TypeError(
+                f"reason must be a non-empty string, got {type(reason).__name__}"
+            )
 
         confidence = data["confidence"]
         if not isinstance(confidence, (int, float)):
-            raise TypeError(f"confidence must be a number, got {type(confidence).__name__}")
+            raise TypeError(
+                f"confidence must be a number, got {type(confidence).__name__}"
+            )
         confidence = float(confidence)
         if not (0.0 <= confidence <= 1.0):
             raise ValueError(f"confidence must be between 0 and 1, got {confidence}")
@@ -71,5 +77,8 @@ class ResponseValidator:
             "confidence": round(confidence, 4),
         }
 
-        logger.info("response_validated", extra={"is_malicious": is_malicious, "confidence": confidence})
+        logger.info(
+            "response_validated",
+            extra={"is_malicious": is_malicious, "confidence": confidence},
+        )
         return validated

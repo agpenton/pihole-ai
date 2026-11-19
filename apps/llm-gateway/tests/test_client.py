@@ -50,7 +50,9 @@ class FakeAsyncClient:
     async def __aexit__(self, *_exc_info: object) -> None:
         """Exit the fake HTTP client context."""
 
-    async def post(self, url: str, *, json: dict[str, Any], headers: dict[str, str]) -> FakeResponse:
+    async def post(
+        self, url: str, *, json: dict[str, Any], headers: dict[str, str]
+    ) -> FakeResponse:
         """Record a request and return the configured response."""
         self.requests.append({"url": url, "json": json, "headers": headers})
         return self.response
@@ -67,7 +69,9 @@ def run_query(
 def test_query_posts_expected_request_and_returns_assistant_content() -> None:
     """A successful response uses the configured endpoint, auth, model, and prompt."""
     FakeAsyncClient.instances = []
-    FakeAsyncClient.response = FakeResponse({"choices": [{"message": {"content": '{"is_malicious": false}'}}]})
+    FakeAsyncClient.response = FakeResponse(
+        {"choices": [{"message": {"content": '{"is_malicious": false}'}}]}
+    )
     client = OpenRouterClient(
         "secret",
         model="test-model",
@@ -98,7 +102,10 @@ def test_query_propagates_http_errors() -> None:
     response = httpx.Response(503, request=request)
     FakeAsyncClient.instances = []
     FakeAsyncClient.response = FakeResponse(
-        {}, httpx.HTTPStatusError("service unavailable", request=request, response=response)
+        {},
+        httpx.HTTPStatusError(
+            "service unavailable", request=request, response=response
+        ),
     )
     client = OpenRouterClient("secret")
 

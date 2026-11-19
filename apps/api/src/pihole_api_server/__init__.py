@@ -43,11 +43,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 def _cors_origins() -> list[str]:
     """Read configured CORS origins."""
     value = os.getenv("CORS_ORIGINS", "")
-    origins = [
-        origin.strip()
-        for origin in value.split(",")
-        if origin.strip()
-    ]
+    origins = [origin.strip() for origin in value.split(",") if origin.strip()]
     return origins or ["*"]
 
 
@@ -56,9 +52,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="pihole-ai API",
         version=API_VERSION,
-        description=(
-            "Threat assessments, operator approvals, and audit history."
-        ),
+        description=("Threat assessments, operator approvals, and audit history."),
         lifespan=lifespan,
     )
 
@@ -72,21 +66,18 @@ def create_app() -> FastAPI:
 
     @app.middleware("http")
     async def request_middleware(
-            request: Request,
-            call_next: Callable[[Request], Awaitable[Response]],
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
         """Attach request IDs and record request metrics."""
-        request_id = (
-                request.headers.get("X-Request-ID")
-                or str(uuid.uuid4())
-        )
+        request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
         endpoint = request.url.path
         method = request.method
 
         with measure_duration(
-                api_request_duration_seconds,
-                endpoint=endpoint,
-                method=method,
+            api_request_duration_seconds,
+            endpoint=endpoint,
+            method=method,
         ):
             try:
                 response = await call_next(request)

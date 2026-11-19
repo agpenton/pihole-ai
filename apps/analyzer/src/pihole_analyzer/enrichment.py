@@ -91,7 +91,9 @@ class EnrichmentService:
             if pattern.search(domain):
                 score += 0.3
                 categories.append(f"pattern_match:{label}")
-                evidence.setdefault("pattern_matches", []).append({"pattern": label, "domain": domain})
+                evidence.setdefault("pattern_matches", []).append(
+                    {"pattern": label, "domain": domain}
+                )
 
         # --- Short domain heuristic ---
         if len(domain.split(".")[0]) < 5:

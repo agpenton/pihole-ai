@@ -81,7 +81,9 @@ def test_get_returns_none_on_cache_miss() -> None:
     """A missing database row is treated as a cache miss."""
     session = CacheSession()
 
-    result = asyncio.run(ResponseCache(cast(Any, SessionFactory(session))).get("missing"))
+    result = asyncio.run(
+        ResponseCache(cast(Any, SessionFactory(session))).get("missing")
+    )
 
     assert result is None
 
@@ -91,7 +93,9 @@ def test_set_persists_entry_with_deterministic_key_and_ttl() -> None:
     session = CacheSession()
     cache = ResponseCache(cast(Any, SessionFactory(session)))
 
-    asyncio.run(cache.set("example.com", "prompt", "response", "test-model", ttl_hours=2))
+    asyncio.run(
+        cache.set("example.com", "prompt", "response", "test-model", ttl_hours=2)
+    )
 
     assert len(session.added) == 1
     entry = session.added[0]

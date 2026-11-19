@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import logging
 import signal
 from datetime import UTC, datetime, timedelta
@@ -28,6 +29,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 logger = structlog.get_logger()
 
 JsonDict = dict[str, Any]
+
+# Keep each multi-row INSERT below asyncpg's 32,767 bind-parameter limit.
+# The current DnsEvent insert binds 9 values per row; 3,000 rows = 27,000.
+EVENT_INSERT_BATCH_SIZE = 3000
+
+# Local DNS namespaces that should never enter AI analysis.
+LOCAL_DOMAIN_SUFFIXES = (
+    "fritz.box",
+    "home.arpa",
+    "local",
+)
+
+# Private and local IPv4 networks.
+LOCAL_NETWORKS = (
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("169.254.0.0/16"),
+)
 
 QUERY_TYPE_NAMES = {
     1: "A",
@@ -138,6 +159,7 @@ class PiholeClient:
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             sid = await self._authenticate(client)
             headers = {"X-FTL-SID": sid} if sid else {}
+
             try:
                 response = await client.get(
                     f"{self.base_url}/stats/summary",
@@ -163,6 +185,98 @@ def _query_type(value: Any) -> str:
     return str(value or "A").upper()
 
 
+def _is_local_ip(value: str) -> bool:
+    """Return True when an IPv4 address belongs to a local network."""
+    try:
+        address = ipaddress.ip_address(value)
+    except ValueError:
+        return False
+
+    return any(address in network for network in LOCAL_NETWORKS)
+
+
+def _is_private_reverse_dns(domain: str) -> bool:
+    """
+    Detect private IPv4 reverse-DNS queries.
+
+    Handles ordinary PTR names:
+        0.178.168.192.in-addr.arpa
+
+    Also handles DNS-SD names:
+        lb._dns-sd._udp.0.178.168.192.in-addr.arpa
+    """
+    labels = domain.split(".")
+
+    if len(labels) < 6:
+        return False
+
+    if labels[-2:] != ["in-addr", "arpa"]:
+        return False
+
+    reverse_labels = labels[:-2]
+
+    # DNS-SD labels may precede the four IPv4 octets.
+    for index in range(len(reverse_labels) - 3):
+        candidate = reverse_labels[index : index + 4]
+
+        if not all(label.isdecimal() for label in candidate):
+            continue
+
+        try:
+            octets = [int(label) for label in candidate]
+
+            if any(octet < 0 or octet > 255 for octet in octets):
+                continue
+
+            address = ipaddress.ip_address(
+                ".".join(str(octet) for octet in reversed(octets))
+            )
+        except ValueError:
+            continue
+
+        if any(address in network for network in LOCAL_NETWORKS):
+            return True
+
+    return False
+
+
+def is_local_domain(value: str) -> bool:
+    """
+    Identify local domains and private reverse-DNS queries.
+
+    These records are excluded from Pi-hole AI ingestion.
+    """
+    domain = value.strip().rstrip(".").lower()
+
+    if not domain:
+        return True
+
+    # Ignore local namespaces and their subdomains.
+    if any(
+        domain == suffix or domain.endswith(f".{suffix}")
+        for suffix in LOCAL_DOMAIN_SUFFIXES
+    ):
+        return True
+
+    # Ignore the special DNS resolver discovery namespace.
+    if domain == "_dns.resolver.arpa" or domain.endswith("._dns.resolver.arpa"):
+        return True
+
+    # Ignore private IPv4 addresses queried directly.
+    if _is_local_ip(domain):
+        return True
+
+    # Ignore private IPv4 reverse-DNS queries.
+    if _is_private_reverse_dns(domain):
+        return True
+
+    # Ignore single-label local hostnames.
+    if "." not in domain:
+        return True
+
+    return False
+
+
 def normalize_query_log_entry(entry: JsonDict) -> JsonDict | None:
     """Convert a Pi-hole v6 query record into the internal event schema."""
     try:
@@ -174,7 +288,13 @@ def normalize_query_log_entry(entry: JsonDict) -> JsonDict | None:
         if not domain_value:
             return None
 
-        domain = normalize_domain(str(domain_value))
+        raw_domain = str(domain_value).strip().rstrip(".")
+
+        # Filter local infrastructure before domain normalization.
+        if is_local_domain(raw_domain):
+            return None
+
+        domain = normalize_domain(raw_domain)
         client = _client_ip(entry.get("client") or entry.get("ip"))
         query_type = _query_type(entry.get("type"))
 
@@ -225,14 +345,23 @@ async def ingest_events(
     unique_events = list(unique_events_by_id.values())
 
     try:
-        event_insert = pg_insert(DnsEvent).values(unique_events)
-        event_insert = event_insert.on_conflict_do_nothing(index_elements=[DnsEvent.event_id]).returning(
-            DnsEvent.event_id
-        )
+        # Insert in chunks to stay below asyncpg's bind-parameter limit.
+        inserted_ids: set[str] = set()
 
-        result = await session.execute(event_insert)
-        inserted_ids = set(result.scalars().all())
-        new_events = [event for event in unique_events if event["event_id"] in inserted_ids]
+        for offset in range(0, len(unique_events), EVENT_INSERT_BATCH_SIZE):
+            batch = unique_events[offset : offset + EVENT_INSERT_BATCH_SIZE]
+
+            event_insert = pg_insert(DnsEvent).values(batch)
+            event_insert = event_insert.on_conflict_do_nothing(
+                index_elements=[DnsEvent.event_id]
+            ).returning(DnsEvent.event_id)
+
+            result = await session.execute(event_insert)
+            inserted_ids.update(result.scalars().all())
+
+        new_events = [
+            event for event in unique_events if event["event_id"] in inserted_ids
+        ]
 
         inserted = len(new_events)
         duplicates = len(events) - inserted
@@ -258,7 +387,10 @@ async def ingest_events(
             inventory_upsert = inventory_insert.on_conflict_do_update(
                 index_elements=[DomainInventory.normalized_domain],
                 set_={
-                    "query_count": (DomainInventory.query_count + inventory_insert.excluded.query_count),
+                    "query_count": (
+                        DomainInventory.query_count
+                        + inventory_insert.excluded.query_count
+                    ),
                     "first_seen": func.least(
                         DomainInventory.first_seen,
                         inventory_insert.excluded.first_seen,
@@ -274,11 +406,15 @@ async def ingest_events(
 
             inventory = (
                 await session.execute(
-                    select(DomainInventory).where(DomainInventory.normalized_domain == domain_name).with_for_update()
+                    select(DomainInventory)
+                    .where(DomainInventory.normalized_domain == domain_name)
+                    .with_for_update()
                 )
             ).scalar_one()
 
-            existing_clients = [str(client_ip) for client_ip in (inventory.client_ips or [])]
+            existing_clients = [
+                str(client_ip) for client_ip in (inventory.client_ips or [])
+            ]
             merged_clients = list(dict.fromkeys([*existing_clients, *clients]))
             inventory.client_ips = merged_clients
             inventory.unique_clients = len(merged_clients)
@@ -292,6 +428,7 @@ async def ingest_events(
         raise
 
     dns_events_duplicates_total.inc(duplicates)
+
     for event in new_events:
         dns_events_total.labels(
             query_type=event["query_type"],
@@ -319,7 +456,8 @@ class DnsCollector:
         last_timestamp = (
             datetime.fromtimestamp(self._last_timestamp, tz=UTC)
             if self._last_timestamp
-            else datetime.now(UTC) - timedelta(hours=self.settings.pihole.initial_lookback_hours)
+            else datetime.now(UTC)
+            - timedelta(hours=self.settings.pihole.initial_lookback_hours)
         )
 
         try:
@@ -404,6 +542,7 @@ def main(once: bool = False, verbose: bool = False) -> None:
     async def run_collector() -> None:
         await init_db()
         collector = DnsCollector()
+
         try:
             if once:
                 await collector.poll_and_ingest()
@@ -415,6 +554,7 @@ def main(once: bool = False, verbose: bool = False) -> None:
                     sig,
                     lambda: asyncio.create_task(collector.stop()),
                 )
+
             await collector.run()
         finally:
             await close_db()

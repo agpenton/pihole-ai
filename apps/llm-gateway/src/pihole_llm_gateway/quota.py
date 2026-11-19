@@ -16,16 +16,16 @@ class QuotaManager:
     """Enforce a configurable daily LLM request quota."""
 
     def __init__(
-            self,
-            session_factory: async_sessionmaker[AsyncSession],
-            daily_limit: int = 40,
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        daily_limit: int = 40,
     ) -> None:
         self.session_factory = session_factory
         self.daily_limit = daily_limit
 
     async def _get_or_create_today(
-            self,
-            session: AsyncSession,
+        self,
+        session: AsyncSession,
     ) -> LlmUsage:
         """Get today's row, creating it when necessary."""
         today = date.today()
@@ -34,7 +34,7 @@ class QuotaManager:
             today + timedelta(days=1),
             datetime.min.time(),
             tzinfo=UTC,
-            )
+        )
 
         result = await session.execute(
             select(LlmUsage)
@@ -79,6 +79,6 @@ class QuotaManager:
                     "remaining": max(
                         0,
                         record.daily_limit - record.request_count,
-                        ),
+                    ),
                 },
             )

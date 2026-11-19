@@ -36,12 +36,12 @@ logger = structlog.get_logger()
 
 
 async def save_assessment(
-        session: AsyncSession,
-        domain: DomainInventory,
-        enrichment: dict[str, Any],
-        *,
-        status: str = "pending",
-        llm_response: dict[str, Any] | None = None,
+    session: AsyncSession,
+    domain: DomainInventory,
+    enrichment: dict[str, Any],
+    *,
+    status: str = "pending",
+    llm_response: dict[str, Any] | None = None,
 ) -> DomainAssessment:
     """Create or update the active assessment for a domain.
 
@@ -57,7 +57,7 @@ async def save_assessment(
         .where(
             DomainAssessment.domain_id == domain.id,
             DomainAssessment.status.in_(("pending", "failed")),
-            )
+        )
         .order_by(DomainAssessment.updated_at.desc(), DomainAssessment.id.desc())
         .with_for_update()
     )
@@ -83,9 +83,7 @@ async def save_assessment(
         session.add(assessment)
     else:
         assessment.suspicion_score = float(enrichment["suspicion_score"])
-        assessment.threat_categories = list(
-            enrichment.get("threat_categories") or []
-        )
+        assessment.threat_categories = list(enrichment.get("threat_categories") or [])
         assessment.evidence = evidence
         assessment.status = status
         assessment.llm_response = (
@@ -112,9 +110,9 @@ class Analyzer:
         self._running = False
 
     async def analyze_domain(
-            self,
-            session: AsyncSession,
-            domain: DomainInventory,
+        self,
+        session: AsyncSession,
+        domain: DomainInventory,
     ) -> bool:
         """Analyze one domain and persist either pending or failed status."""
         domain_name = domain.normalized_domain
@@ -155,16 +153,12 @@ class Analyzer:
                             float(enrichment["suspicion_score"]),
                             confidence,
                         )
-                        categories = list(
-                            enrichment.get("threat_categories") or []
-                        )
+                        categories = list(enrichment.get("threat_categories") or [])
                         if "llm:malicious" not in categories:
                             categories.append("llm:malicious")
                         enrichment["threat_categories"] = categories
                     else:
-                        categories = list(
-                            enrichment.get("threat_categories") or []
-                        )
+                        categories = list(enrichment.get("threat_categories") or [])
                         if "llm:not_malicious" not in categories:
                             categories.append("llm:not_malicious")
                         enrichment["threat_categories"] = categories
@@ -198,8 +192,8 @@ class Analyzer:
             analyzer_assessments_total.labels(status=assessment.status).inc()
 
             if (
-                    float(enrichment["suspicion_score"])
-                    >= self.settings.analyzer.min_suspicion_score
+                float(enrichment["suspicion_score"])
+                >= self.settings.analyzer.min_suspicion_score
             ):
                 analyzer_suspicious_domains_total.inc()
 
@@ -212,8 +206,7 @@ class Analyzer:
                 llm_status=(
                     "completed"
                     if llm_result is not None
-                    else "failed" if status == "failed"
-                    else "not_required"
+                    else "failed" if status == "failed" else "not_required"
                 ),
                 assessment_status=assessment.status,
             )
@@ -289,9 +282,9 @@ class Analyzer:
 )
 @click.option("--verbose", "-v", is_flag=True, help="Enable debug logging")
 def main(
-        once: bool = False,
-        refresh_feeds: bool = False,
-        verbose: bool = False,
+    once: bool = False,
+    refresh_feeds: bool = False,
+    verbose: bool = False,
 ) -> None:
     """Run the Pi-hole AI security analyzer."""
     logging.basicConfig(

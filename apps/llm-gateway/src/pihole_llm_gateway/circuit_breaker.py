@@ -15,7 +15,9 @@ class CircuitBreakerOpen(Exception):
     """Raised when the circuit breaker is open and calls are blocked."""
 
     def __init__(self, recovery_timeout: int) -> None:
-        super().__init__(f"Circuit breaker open. Retry after {recovery_timeout} seconds.")
+        super().__init__(
+            f"Circuit breaker open. Retry after {recovery_timeout} seconds."
+        )
         self.recovery_timeout = recovery_timeout
 
 
@@ -43,7 +45,10 @@ class CircuitBreaker:
     @property
     def state(self) -> int:
         """Current circuit state: 0=closed, 1=open, 2=half-open."""
-        if self._state == 1 and time.monotonic() - self._opened_at >= self.recovery_timeout:
+        if (
+            self._state == 1
+            and time.monotonic() - self._opened_at >= self.recovery_timeout
+        ):
             self._state = 2  # Transition to half-open
             logger.info("circuit_breaker_half_open")
         return self._state

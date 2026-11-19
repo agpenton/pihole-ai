@@ -91,7 +91,9 @@ class FakeResult:
 class FakeSession:
     """Async-session stand-in used by ingestion tests."""
 
-    def __init__(self, inserted_ids: set[str], client_ips: list[str] | None = None) -> None:
+    def __init__(
+        self, inserted_ids: set[str], client_ips: list[str] | None = None
+    ) -> None:
         self.inserted_ids = inserted_ids
         self.inventory = SimpleNamespace(
             client_ips=client_ips or [],
@@ -112,7 +114,10 @@ class FakeSession:
         self.execute_count += 1
         table_name = getattr(getattr(statement, "table", None), "name", None)
         if table_name == "domain_inventory":
-            values = {column.name: getattr(value, "value", value) for column, value in statement._values.items()}
+            values = {
+                column.name: getattr(value, "value", value)
+                for column, value in statement._values.items()
+            }
             self.inventory.query_count += int(values["query_count"])
             self.inventory.first_seen = (
                 values["first_seen"]
@@ -176,12 +181,18 @@ class SessionContext:
 class FakeCollectorClient:
     """Pi-hole client double for collector polling tests."""
 
-    def __init__(self, entries: list[dict[str, Any]] | None = None, error: Exception | None = None) -> None:
+    def __init__(
+        self,
+        entries: list[dict[str, Any]] | None = None,
+        error: Exception | None = None,
+    ) -> None:
         self.entries = entries or []
         self.error = error
         self.from_times: list[datetime | None] = []
 
-    async def get_query_log(self, from_time: datetime | None = None, limit: int = 10000) -> list[dict[str, Any]]:
+    async def get_query_log(
+        self, from_time: datetime | None = None, limit: int = 10000
+    ) -> list[dict[str, Any]]:
         """Return entries and record incremental-poll arguments."""
         del limit
         self.from_times.append(from_time)
@@ -193,18 +204,28 @@ class FakeCollectorClient:
 class FakeSettings:
     """Settings subset required to construct a DnsCollector."""
 
-    pihole = SimpleNamespace(url="http://pi.hole/admin/api.php", api_token="token", timeout=3.0, poll_interval=0.01)
+    pihole = SimpleNamespace(
+        url="http://pi.hole/admin/api.php",
+        api_token="token",
+        timeout=3.0,
+        poll_interval=0.01,
+    )
 
 
 def test_pihole_client_builds_urls_with_and_without_auth() -> None:
     """URL construction strips endpoint slashes and appends auth correctly."""
     client = collector_module.PiholeClient("http://pi.hole/", api_token="secret")
 
-    assert client._build_url("/stats_v5.php") == "http://pi.hole/stats_v5.php?auth=secret"
-    assert client._build_url("querylog.php?all=true") == "http://pi.hole/querylog.php?all=true&auth=secret"
-    assert collector_module.PiholeClient("http://pi.hole/", api_token=None)._build_url("stats_v5.php") == (
-        "http://pi.hole/stats_v5.php"
+    assert (
+        client._build_url("/stats_v5.php") == "http://pi.hole/stats_v5.php?auth=secret"
     )
+    assert (
+        client._build_url("querylog.php?all=true")
+        == "http://pi.hole/querylog.php?all=true&auth=secret"
+    )
+    assert collector_module.PiholeClient("http://pi.hole/", api_token=None)._build_url(
+        "stats_v5.php"
+    ) == ("http://pi.hole/stats_v5.php")
 
 
 @pytest.mark.asyncio
@@ -212,8 +233,13 @@ async def test_pihole_client_fetches_stats_and_forward_destinations(
     fake_http_client: type[FakeHttpClient],
 ) -> None:
     """Stats and forwarding endpoints return decoded JSON and use configured timeout."""
-    fake_http_client.responses = [FakeResponse({"domains_being_blocked": 12}), FakeResponse([{"name": "Cloudflare"}])]
-    client = collector_module.PiholeClient("http://pi.hole/api", api_token="secret", timeout=4.5)
+    fake_http_client.responses = [
+        FakeResponse({"domains_being_blocked": 12}),
+        FakeResponse([{"name": "Cloudflare"}]),
+    ]
+    client = collector_module.PiholeClient(
+        "http://pi.hole/api", api_token="secret", timeout=4.5
+    )
 
     stats = await client.get_stats_v5()
     destinations = await client.get_forward_destinations()
@@ -222,7 +248,10 @@ async def test_pihole_client_fetches_stats_and_forward_destinations(
     assert destinations == [{"name": "Cloudflare"}]
     assert fake_http_client.calls == [
         {"timeout": 4.5, "url": "http://pi.hole/api/stats_v5.php?auth=secret"},
-        {"timeout": 4.5, "url": "http://pi.hole/api/forward_destinations.php?auth=secret"},
+        {
+            "timeout": 4.5,
+            "url": "http://pi.hole/api/forward_destinations.php?auth=secret",
+        },
     ]
 
 
@@ -231,7 +260,9 @@ async def test_pihole_client_query_log_unwraps_data_and_sends_from_parameter(
     fake_http_client: type[FakeHttpClient],
 ) -> None:
     """Query-log responses support Pi-hole's wrapped payload and incremental timestamp."""
-    fake_http_client.responses = [FakeResponse({"status": True, "data": [{"domain": "example.com"}]})]
+    fake_http_client.responses = [
+        FakeResponse({"status": True, "data": [{"domain": "example.com"}]})
+    ]
     client = collector_module.PiholeClient("http://pi.hole/api")
     from_time = datetime.fromtimestamp(1_700_000_000, tz=UTC)
 
@@ -248,7 +279,9 @@ async def test_pihole_client_query_log_unwraps_data_and_sends_from_parameter(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("payload", [[{"domain": "example.com"}], {"status": True}, "unexpected"])
+@pytest.mark.parametrize(
+    "payload", [[{"domain": "example.com"}], {"status": True}, "unexpected"]
+)
 async def test_pihole_client_query_log_handles_supported_and_empty_payloads(
     fake_http_client: type[FakeHttpClient], payload: Any
 ) -> None:
@@ -261,7 +294,9 @@ async def test_pihole_client_query_log_handles_supported_and_empty_payloads(
 
 
 @pytest.mark.asyncio
-async def test_pihole_client_propagates_http_errors(fake_http_client: type[FakeHttpClient]) -> None:
+async def test_pihole_client_propagates_http_errors(
+    fake_http_client: type[FakeHttpClient],
+) -> None:
     """HTTP failures remain visible to callers for the collector to handle."""
     error = httpx.HTTPStatusError(
         "bad response",
@@ -305,7 +340,10 @@ async def test_pihole_client_propagates_http_errors(fake_http_client: type[FakeH
     ],
 )
 def test_normalize_query_log_entry_maps_v6_and_legacy_fields(
-    entry: dict[str, Any], expected_domain: str, expected_client: str, expected_type: str
+    entry: dict[str, Any],
+    expected_domain: str,
+    expected_client: str,
+    expected_type: str,
 ) -> None:
     """Normalization accepts v6 names and the legacy query/ip aliases."""
     normalized = collector_module.normalize_query_log_entry(entry)
@@ -345,17 +383,23 @@ def test_normalize_query_log_entry_preserves_optional_fields_and_defaults() -> N
         {"timestamp": "not-a-timestamp", "domain": "example.com"},
     ],
 )
-def test_normalize_query_log_entry_rejects_invalid_entries(entry: dict[str, Any]) -> None:
+def test_normalize_query_log_entry_rejects_invalid_entries(
+    entry: dict[str, Any],
+) -> None:
     """Entries without usable timestamps or domains are skipped safely."""
     assert collector_module.normalize_query_log_entry(entry) is None
 
 
 @pytest.mark.asyncio
-async def test_ingest_events_inserts_new_events_and_counts_duplicates(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_ingest_events_inserts_new_events_and_counts_duplicates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Ingestion persists only new events and updates their domain inventory."""
     duplicate_metric = FakeMetric()
     event_metric = FakeMetric()
-    monkeypatch.setattr(collector_module, "dns_events_duplicates_total", duplicate_metric)
+    monkeypatch.setattr(
+        collector_module, "dns_events_duplicates_total", duplicate_metric
+    )
     monkeypatch.setattr(collector_module, "dns_events_total", event_metric)
     session = FakeSession({"new-event"})
     events: list[dict[str, Any]] = [
@@ -383,7 +427,9 @@ async def test_ingest_events_inserts_new_events_and_counts_duplicates(monkeypatc
         },
     ]
 
-    inserted, duplicates = await collector_module.ingest_events(cast(Any, session), events)
+    inserted, duplicates = await collector_module.ingest_events(
+        cast(Any, session), events
+    )
 
     assert (inserted, duplicates) == (1, 1)
     assert session.added == []
@@ -395,7 +441,9 @@ async def test_ingest_events_inserts_new_events_and_counts_duplicates(monkeypatc
     assert session.inventory.last_seen == datetime(2025, 1, 1, tzinfo=UTC)
     assert session.commits == 1
     assert duplicate_metric.increments == [1]
-    assert event_metric.labels_seen == [{"query_type": "AAAA", "response_code": "NODATA"}]
+    assert event_metric.labels_seen == [
+        {"query_type": "AAAA", "response_code": "NODATA"}
+    ]
     assert event_metric.increments == [1]
 
 
@@ -406,7 +454,9 @@ async def test_ingest_events_does_not_commit_when_all_events_are_duplicates(
     """An all-duplicate batch avoids an unnecessary database commit."""
     duplicate_metric = FakeMetric()
     event_metric = FakeMetric()
-    monkeypatch.setattr(collector_module, "dns_events_duplicates_total", duplicate_metric)
+    monkeypatch.setattr(
+        collector_module, "dns_events_duplicates_total", duplicate_metric
+    )
     monkeypatch.setattr(collector_module, "dns_events_total", event_metric)
     session = FakeSession(set())
     events = [
@@ -432,11 +482,15 @@ async def test_ingest_events_does_not_commit_when_all_events_are_duplicates(
 
 
 @pytest.mark.asyncio
-async def test_ingest_events_handles_empty_batches(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_ingest_events_handles_empty_batches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Empty batches are no-ops with zero metric increments."""
     duplicate_metric = FakeMetric()
     event_metric = FakeMetric()
-    monkeypatch.setattr(collector_module, "dns_events_duplicates_total", duplicate_metric)
+    monkeypatch.setattr(
+        collector_module, "dns_events_duplicates_total", duplicate_metric
+    )
     monkeypatch.setattr(collector_module, "dns_events_total", event_metric)
     session = FakeSession(set())
 
@@ -464,7 +518,9 @@ async def test_dns_collector_poll_and_ingest_normalizes_entries_and_tracks_lates
     collector.settings = FakeSettings()
     ingested: list[dict[str, Any]] = []
 
-    async def fake_ingest(_session: Any, events: list[dict[str, Any]]) -> tuple[int, int]:
+    async def fake_ingest(
+        _session: Any, events: list[dict[str, Any]]
+    ) -> tuple[int, int]:
         ingested.extend(events)
         return 2, 0
 
@@ -478,7 +534,10 @@ async def test_dns_collector_poll_and_ingest_normalizes_entries_and_tracks_lates
     assert result == (2, 0)
     assert client.from_times == [datetime.fromtimestamp(1_700_000_000, tz=UTC)]
     assert collector._last_timestamp == 1_700_000_010
-    assert [event["domain"] for event in ingested] == ["first.example", "second.example"]
+    assert [event["domain"] for event in ingested] == [
+        "first.example",
+        "second.example",
+    ]
     assert context.entered is True
     assert context.exited is True
 
@@ -500,7 +559,9 @@ async def test_dns_collector_poll_skips_database_for_empty_or_failed_polls(
 
     monkeypatch.setattr(collector_module, "async_session_factory", session_factory)
 
-    collector.client = FakeCollectorClient(cast(list[dict[str, Any]], [{"timestamp": 0, "domain": "example.com"}]))
+    collector.client = FakeCollectorClient(
+        cast(list[dict[str, Any]], [{"timestamp": 0, "domain": "example.com"}])
+    )
     assert await collector.poll_and_ingest() == (0, 0)
     assert context_created is False
 
@@ -551,7 +612,9 @@ def test_dns_collector_stop_clears_running_flag() -> None:
     assert collector._running is False
 
 
-def test_dns_collector_constructor_uses_pihole_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_dns_collector_constructor_uses_pihole_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Construction wires the configured Pi-hole endpoint into the client."""
     monkeypatch.setattr(collector_module, "get_settings", lambda: FakeSettings())
 
@@ -564,7 +627,9 @@ def test_dns_collector_constructor_uses_pihole_settings(monkeypatch: pytest.Monk
     assert collector._running is False
 
 
-def test_cli_once_initializes_collects_and_closes(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_once_initializes_collects_and_closes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """The one-shot CLI path initializes the database and performs one poll."""
     calls: list[str] = []
 
@@ -575,7 +640,9 @@ def test_cli_once_initializes_collects_and_closes(monkeypatch: pytest.MonkeyPatc
 
     def fake_settings() -> Any:
         settings = FakeSettings()
-        cast(Any, settings).telemetry = SimpleNamespace(service_name="collector", metrics_enabled=False)
+        cast(Any, settings).telemetry = SimpleNamespace(
+            service_name="collector", metrics_enabled=False
+        )
         return settings
 
     async def fake_init_db() -> None:

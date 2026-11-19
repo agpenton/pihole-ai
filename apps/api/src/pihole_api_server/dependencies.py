@@ -29,7 +29,9 @@ def get_settings() -> Settings:
     return load_settings()
 
 
-def get_pihole_client(settings: Annotated[Settings, Depends(get_settings)]) -> PiholeClient:
+def get_pihole_client(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> PiholeClient:
     """Build the Pi-hole client used by block-application routes."""
     return PiholeClient(
         base_url=settings.pihole.url,
@@ -56,9 +58,13 @@ async def require_api_key(
     if expected is None:
         return
     if x_api_key is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="API key required")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="API key required"
+        )
     if not hmac.compare_digest(x_api_key, expected):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid API key")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Invalid API key"
+        )
 
 
 async def get_current_user(
@@ -78,7 +84,9 @@ async def get_current_user(
 class SlidingWindowRateLimiter:
     """Small in-process sliding-window limiter for one API process."""
 
-    def __init__(self, limit: int = 120, window: timedelta = timedelta(minutes=1)) -> None:
+    def __init__(
+        self, limit: int = 120, window: timedelta = timedelta(minutes=1)
+    ) -> None:
         self.limit = limit
         self.window = window
         self._requests: dict[str, deque[datetime]] = defaultdict(deque)
@@ -106,7 +114,9 @@ async def rate_limit(
     """Apply a modest per-client in-process request limit."""
     client_key = x_forwarded_for or x_api_key or "anonymous"
     if not _rate_limiter.allow(client_key):
-        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Rate limit exceeded")
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Rate limit exceeded"
+        )
 
 
 DbSession = Annotated[AsyncSession, Depends(get_db_session)]

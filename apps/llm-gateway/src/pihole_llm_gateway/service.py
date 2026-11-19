@@ -56,9 +56,9 @@ class LlmGateway:
         )
 
     async def assess(
-            self,
-            domain: str,
-            context: dict[str, Any] | None = None,
+        self,
+        domain: str,
+        context: dict[str, Any] | None = None,
     ) -> dict[str, object]:
         """Return a validated assessment for a domain."""
         context = context or {}
@@ -86,8 +86,8 @@ class LlmGateway:
             for attempt in range(attempts):
                 try:
                     with measure_duration(
-                            llm_request_duration_seconds,
-                            status="success",
+                        llm_request_duration_seconds,
+                        status="success",
                     ):
                         raw_response = await self.circuit_breaker.call(
                             self.client.query,
@@ -110,12 +110,10 @@ class LlmGateway:
                         status="success",
                         model=self.client.model,
                     ).inc()
-                    circuit_breaker_state.labels(
-                        service="llm-gateway"
-                    ).set(self.circuit_breaker.state)
-                    llm_quota_remaining.set(
-                        max(0, self.settings.llm.daily_quota - 1)
+                    circuit_breaker_state.labels(service="llm-gateway").set(
+                        self.circuit_breaker.state
                     )
+                    llm_quota_remaining.set(max(0, self.settings.llm.daily_quota - 1))
 
                     logger.info(
                         "llm_assessment_complete",

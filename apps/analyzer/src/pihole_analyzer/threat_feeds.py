@@ -54,7 +54,9 @@ class ThreatFeedConfig:
     def __post_init__(self) -> None:
         """Validate feed configuration before any network request is made."""
         if not _SOURCE_PATTERN.fullmatch(self.name):
-            raise ThreatFeedError("Feed name must contain only safe identifier characters")
+            raise ThreatFeedError(
+                "Feed name must contain only safe identifier characters"
+            )
         _validate_url(self.url)
         _validate_category(self.category)
         _validate_confidence(self.confidence)
@@ -82,7 +84,9 @@ class ThreatFeedConfig:
             max_entries = int(value.get("max_entries", _DEFAULT_MAX_ENTRIES))
             max_bytes = int(value.get("max_bytes", _DEFAULT_MAX_BYTES))
         except (TypeError, ValueError) as exc:
-            raise ThreatFeedError("Feed numeric settings must be valid numbers") from exc
+            raise ThreatFeedError(
+                "Feed numeric settings must be valid numbers"
+            ) from exc
 
         return cls(
             name=name,
@@ -145,7 +149,9 @@ def _payload_entries(payload: Any) -> list[Any]:
             entries = payload.get(key)
             if isinstance(entries, list):
                 return entries
-    raise ThreatFeedError("Feed response must be a JSON list or a supported structured envelope")
+    raise ThreatFeedError(
+        "Feed response must be a JSON list or a supported structured envelope"
+    )
 
 
 def normalize_feed_entry(entry: Any, config: ThreatFeedConfig) -> ThreatIndicator:
@@ -170,13 +176,17 @@ def normalize_feed_entry(entry: Any, config: ThreatFeedConfig) -> ThreatIndicato
 
     normalized_category = _validate_category(str(category))
     normalized_confidence = _validate_confidence(confidence)
-    return ThreatIndicator(domain, normalized_category, normalized_confidence, config.name)
+    return ThreatIndicator(
+        domain, normalized_category, normalized_confidence, config.name
+    )
 
 
 class ThreatFeedAdapter:
     """Fetch and normalize one bounded URL-based structured feed."""
 
-    def __init__(self, config: ThreatFeedConfig, client: httpx.AsyncClient | None = None) -> None:
+    def __init__(
+        self, config: ThreatFeedConfig, client: httpx.AsyncClient | None = None
+    ) -> None:
         self.config = config
         self._client = client
 
@@ -188,7 +198,9 @@ class ThreatFeedAdapter:
         entry count are bounded before normalization.
         """
         if self._client is not None:
-            response = await self._client.get(self.config.url, headers={"Accept": "application/json"})
+            response = await self._client.get(
+                self.config.url, headers={"Accept": "application/json"}
+            )
             return self._parse_response(response)
 
         async with httpx.AsyncClient(
@@ -261,7 +273,10 @@ async def upsert_threat_indicators(
             ThreatIntelligence.category.in_([key[1] for key in keys]),
         )
         result = await session.execute(stmt)
-        existing = {(row.domain, row.category, row.source): row for row in result.scalars().all()}
+        existing = {
+            (row.domain, row.category, row.source): row
+            for row in result.scalars().all()
+        }
 
     activated = 0
     for indicator in indicators:
@@ -327,7 +342,9 @@ class ThreatFeedRefresher:
         results: list[FeedRefreshResult] = []
         for config in self.feeds:
             try:
-                indicators = await ThreatFeedAdapter(config, client=self._client).fetch()
+                indicators = await ThreatFeedAdapter(
+                    config, client=self._client
+                ).fetch()
                 async with self._session_factory() as session:
                     activated, deactivated = await upsert_threat_indicators(
                         session,

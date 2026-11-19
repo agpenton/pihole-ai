@@ -24,8 +24,8 @@ class ResponseCache:
     """PostgreSQL-backed response cache with TTL."""
 
     def __init__(
-            self,
-            session_factory: async_sessionmaker[AsyncSession],
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
     ) -> None:
         self.session_factory = session_factory
 
@@ -36,18 +36,18 @@ class ResponseCache:
                 select(LlmCache).where(
                     LlmCache.query_hash == query_hash,
                     LlmCache.expires_at > datetime.now(UTC),
-                    )
+                )
             )
             row = result.scalar_one_or_none()
             return row.response if row else None
 
     async def set(
-            self,
-            domain: str,
-            prompt: str,
-            response: str,
-            model: str,
-            ttl_hours: int = 24,
+        self,
+        domain: str,
+        prompt: str,
+        response: str,
+        model: str,
+        ttl_hours: int = 24,
     ) -> None:
         """Insert or refresh a cache record."""
         query_hash = _compute_hash(domain, prompt, model)

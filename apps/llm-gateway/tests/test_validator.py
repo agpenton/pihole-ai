@@ -10,7 +10,9 @@ from pihole_llm_gateway.validator import ResponseValidator
 def test_validate_plain_json_and_normalizes_values() -> None:
     """Valid JSON is returned with trimmed reasons and rounded confidence."""
     validator = ResponseValidator()
-    result = validator.validate('{"is_malicious": true, "reason": "  known phishing domain  ", "confidence": 0.876543}')
+    result = validator.validate(
+        '{"is_malicious": true, "reason": "  known phishing domain  ", "confidence": 0.876543}'
+    )
 
     assert result == {
         "is_malicious": True,
@@ -66,12 +68,18 @@ def test_validate_rejects_invalid_field_types_and_ranges() -> None:
         values[field] = value
 
         with pytest.raises(exception):
-            validator.validate("{" + ", ".join(f'"{key}": {item}' for key, item in values.items()) + "}")
+            validator.validate(
+                "{"
+                + ", ".join(f'"{key}": {item}' for key, item in values.items())
+                + "}"
+            )
 
 
 def test_validate_preserves_extra_fields_without_returning_them() -> None:
     """Unknown model fields do not leak into the validated result."""
     validator = ResponseValidator()
-    result = validator.validate('{"is_malicious": false, "reason": "safe", "confidence": 0.5, "extra": "ignored"}')
+    result = validator.validate(
+        '{"is_malicious": false, "reason": "safe", "confidence": 0.5, "extra": "ignored"}'
+    )
 
     assert result == {"is_malicious": False, "reason": "safe", "confidence": 0.5}

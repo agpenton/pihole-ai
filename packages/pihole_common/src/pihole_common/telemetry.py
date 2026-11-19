@@ -205,13 +205,19 @@ def with_metrics(
     def decorator(func: Callable[_P, Awaitable[_R]]) -> Callable[_P, Awaitable[_R]]:
         @wraps(func)
         async def wrapper(*args: _P.args, **kwargs: _P.kwargs) -> _R:
-            with measure_duration(api_request_duration_seconds, endpoint=endpoint, method=method):
+            with measure_duration(
+                api_request_duration_seconds, endpoint=endpoint, method=method
+            ):
                 try:
                     result = await func(*args, **kwargs)
-                    api_requests_total.labels(endpoint=endpoint, method=method, status_code=200).inc()
+                    api_requests_total.labels(
+                        endpoint=endpoint, method=method, status_code=200
+                    ).inc()
                     return result
                 except Exception:
-                    api_requests_total.labels(endpoint=endpoint, method=method, status_code=500).inc()
+                    api_requests_total.labels(
+                        endpoint=endpoint, method=method, status_code=500
+                    ).inc()
                     raise
 
         return wrapper

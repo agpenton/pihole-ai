@@ -14,9 +14,9 @@ class DomainScheduler:
     """Select domains that need a first assessment or a retry."""
 
     def __init__(
-            self,
-            lookback_hours: int = 24,
-            retry_interval_minutes: int | None = None,
+        self,
+        lookback_hours: int = 24,
+        retry_interval_minutes: int | None = None,
     ) -> None:
         self.lookback = timedelta(hours=lookback_hours)
         configured_retry = get_settings().analyzer.llm_retry_interval_minutes
@@ -25,8 +25,8 @@ class DomainScheduler:
         )
 
     async def get_pending_domains(
-            self,
-            limit: int = 100,
+        self,
+        limit: int = 100,
     ) -> list[DomainInventory]:
         """Return domains without a recent assessment or due for retry."""
         now = datetime.now(UTC)
@@ -40,13 +40,13 @@ class DomainScheduler:
                     and_(
                         DomainAssessment.status != "failed",
                         DomainAssessment.created_at >= assessment_cutoff,
-                        ),
+                    ),
                     and_(
                         DomainAssessment.status == "failed",
                         DomainAssessment.updated_at >= retry_cutoff,
-                        ),
+                    ),
                 ),
-                )
+            )
         )
 
         statement = (

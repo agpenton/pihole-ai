@@ -19,9 +19,7 @@ def upgrade() -> None:
     # Existing deployments may have one pending and one failed row for a
     # domain. Keep the most recently updated active row before adding the
     # stricter partial unique index.
-    op.execute(
-        sa.text(
-            """
+    op.execute(sa.text("""
             DELETE FROM domain_assessments AS older
                 USING domain_assessments AS newer
             WHERE older.domain_id = newer.domain_id
@@ -34,9 +32,7 @@ def upgrade() -> None:
               AND older.id < newer.id
                 )
                 )
-            """
-        )
-    )
+            """))
 
     op.drop_constraint(
         "uq_domain_assessment_domain_status",

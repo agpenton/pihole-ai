@@ -7,7 +7,12 @@ from datetime import UTC, datetime
 from typing import Any, cast
 
 from fastapi import APIRouter, HTTPException, Query, Response
-from pihole_common.models import ApprovalAudit, BlockRecommendation, DomainAssessment, DomainInventory
+from pihole_common.models import (
+    ApprovalAudit,
+    BlockRecommendation,
+    DomainAssessment,
+    DomainInventory,
+)
 from pihole_common.security import normalize_domain
 from pihole_common.telemetry import metrics_endpoint
 from sqlalchemy import Select, and_, func, select
@@ -15,7 +20,13 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from pihole_api_server.dependencies import CurrentUser, DbSession, Pihole, Protected, RateLimited
+from pihole_api_server.dependencies import (
+    CurrentUser,
+    DbSession,
+    Pihole,
+    Protected,
+    RateLimited,
+)
 from pihole_api_server.pihole_client import BlockDomainResult, PiholeClientError
 from pihole_api_server.schemas import (
     ApprovalList,
@@ -38,7 +49,9 @@ def _page_count(total: int, page_size: int) -> int:
     return math.ceil(total / page_size) if total else 0
 
 
-def _assessment_response(assessment: DomainAssessment, domain: str) -> DomainAssessmentResponse:
+def _assessment_response(
+    assessment: DomainAssessment, domain: str
+) -> DomainAssessmentResponse:
     """Convert an ORM assessment and its domain name to an API response."""
     return DomainAssessmentResponse(
         id=assessment.id,
@@ -53,7 +66,9 @@ def _assessment_response(assessment: DomainAssessment, domain: str) -> DomainAss
     )
 
 
-def _recommendation_response(recommendation: BlockRecommendation) -> BlockRecommendationResponse:
+def _recommendation_response(
+    recommendation: BlockRecommendation,
+) -> BlockRecommendationResponse:
     """Convert a recommendation ORM object to an API response."""
     return BlockRecommendationResponse.model_validate(recommendation)
 
@@ -89,7 +104,9 @@ async def health(db: DbSession) -> HealthResponse:
     try:
         await db.execute(select(1))
     except SQLAlchemyError:
-        return HealthResponse(status="degraded", version=API_VERSION, db_connected=False)
+        return HealthResponse(
+            status="degraded", version=API_VERSION, db_connected=False
+        )
     return HealthResponse(status="ok", version=API_VERSION, db_connected=True)
 
 
@@ -120,7 +137,9 @@ async def list_assessments(
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    query, conditions = _assessment_query(status_filter, normalized, min_score, max_score)
+    query, conditions = _assessment_query(
+        status_filter, normalized, min_score, max_score
+    )
     if conditions:
         query = query.where(and_(*conditions))
 
@@ -135,7 +154,10 @@ async def list_assessments(
         list[tuple[DomainAssessment, str]],
         (await db.execute(query.offset((page - 1) * page_size).limit(page_size))).all(),
     )
-    items = [_assessment_response(assessment, domain_name) for assessment, domain_name in rows]
+    items = [
+        _assessment_response(assessment, domain_name)
+        for assessment, domain_name in rows
+    ]
     return DomainAssessmentList(
         items=items,
         total=total,
@@ -145,7 +167,11 @@ async def list_assessments(
     )
 
 
-@router.get("/assessments/{assessment_id}", response_model=DomainAssessmentResponse, tags=["assessments"])
+@router.get(
+    "/assessments/{assessment_id}",
+    response_model=DomainAssessmentResponse,
+    tags=["assessments"],
+)
 async def get_assessment(
     assessment_id: int,
     db: DbSession,
@@ -193,19 +219,29 @@ async def _find_recommendation_assessment(
         .order_by(DomainAssessment.updated_at.desc(), DomainAssessment.id.desc())
     )
     if assessment is None:
-        raise HTTPException(status_code=409, detail="Approval has no applicable assessment")
+        raise HTTPException(
+            status_code=409, detail="Approval has no applicable assessment"
+        )
     return assessment
 
 
-async def _approval_request(request: ApprovalRequest | None, expected_action: str) -> ApprovalRequest:
+async def _approval_request(
+    request: ApprovalRequest | None, expected_action: str
+) -> ApprovalRequest:
     """Validate the optional action body against the route being called."""
     value = request or ApprovalRequest()
     if value.action is not None and value.action != expected_action:
-        raise HTTPException(status_code=400, detail=f"Request action must be '{expected_action}'")
+        raise HTTPException(
+            status_code=400, detail=f"Request action must be '{expected_action}'"
+        )
     return value
 
 
-@router.post("/assessments/{assessment_id}/approve", response_model=BlockRecommendationResponse, tags=["approvals"])
+@router.post(
+    "/assessments/{assessment_id}/approve",
+    response_model=BlockRecommendationResponse,
+    tags=["approvals"],
+)
 async def approve_assessment(
     assessment_id: int,
     db: DbSession,
@@ -217,11 +253,15 @@ async def approve_assessment(
     approval = await _approval_request(request, "approve")
     assessment = await _find_assessment(db, assessment_id)
     if assessment.status not in {"pending", "approved"}:
-        raise HTTPException(status_code=409, detail="Only pending assessments can be approved")
+        raise HTTPException(
+            status_code=409, detail="Only pending assessments can be approved"
+        )
     assert assessment.domain is not None
 
     recommendation = await db.scalar(
-        select(BlockRecommendation).where(BlockRecommendation.domain == assessment.domain.normalized_domain)
+        select(BlockRecommendation).where(
+            BlockRecommendation.domain == assessment.domain.normalized_domain
+        )
     )
     now = datetime.now(UTC)
     if recommendation is None:
@@ -240,13 +280,22 @@ async def approve_assessment(
         recommendation.approved_at = now
 
     assessment.status = "approved"
-    db.add(ApprovalAudit(assessment_id=assessment.id, action="approve", actor=current_user, reason=approval.reason))
+    db.add(
+        ApprovalAudit(
+            assessment_id=assessment.id,
+            action="approve",
+            actor=current_user,
+            reason=approval.reason,
+        )
+    )
     await db.commit()
     await db.refresh(recommendation)
     return _recommendation_response(recommendation)
 
 
-@router.post("/assessments/{assessment_id}/reject", response_model=AuditEntry, tags=["approvals"])
+@router.post(
+    "/assessments/{assessment_id}/reject", response_model=AuditEntry, tags=["approvals"]
+)
 async def reject_assessment(
     assessment_id: int,
     db: DbSession,
@@ -258,10 +307,17 @@ async def reject_assessment(
     rejection = await _approval_request(request, "reject")
     assessment = await _find_assessment(db, assessment_id)
     if assessment.status not in {"pending", "rejected"}:
-        raise HTTPException(status_code=409, detail="Only pending assessments can be rejected")
+        raise HTTPException(
+            status_code=409, detail="Only pending assessments can be rejected"
+        )
 
     assessment.status = "rejected"
-    audit = ApprovalAudit(assessment_id=assessment.id, action="reject", actor=current_user, reason=rejection.reason)
+    audit = ApprovalAudit(
+        assessment_id=assessment.id,
+        action="reject",
+        actor=current_user,
+        reason=rejection.reason,
+    )
     db.add(audit)
     await db.commit()
     await db.refresh(audit)
@@ -278,20 +334,40 @@ async def list_approvals(
 ) -> ApprovalList:
     """List human-approved block recommendations."""
     total = int((await db.scalar(select(func.count(BlockRecommendation.id)))) or 0)
-    query = select(BlockRecommendation).order_by(BlockRecommendation.created_at.desc(), BlockRecommendation.id.desc())
-    rows = (await db.execute(query.offset((page - 1) * page_size).limit(page_size))).scalars().all()
+    query = select(BlockRecommendation).order_by(
+        BlockRecommendation.created_at.desc(), BlockRecommendation.id.desc()
+    )
+    rows = (
+        (await db.execute(query.offset((page - 1) * page_size).limit(page_size)))
+        .scalars()
+        .all()
+    )
     items = [_recommendation_response(recommendation) for recommendation in rows]
-    return ApprovalList(items=items, total=total, page=page, page_size=page_size, pages=_page_count(total, page_size))
+    return ApprovalList(
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        pages=_page_count(total, page_size),
+    )
 
 
-@router.get("/approvals/{domain}", response_model=BlockRecommendationResponse, tags=["approvals"])
-async def get_approval(domain: str, db: DbSession, _auth: Protected, _rate: RateLimited) -> BlockRecommendationResponse:
+@router.get(
+    "/approvals/{domain}",
+    response_model=BlockRecommendationResponse,
+    tags=["approvals"],
+)
+async def get_approval(
+    domain: str, db: DbSession, _auth: Protected, _rate: RateLimited
+) -> BlockRecommendationResponse:
     """Return the recommendation for a domain."""
     try:
         normalized = normalize_domain(domain)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    recommendation = await db.scalar(select(BlockRecommendation).where(BlockRecommendation.domain == normalized))
+    recommendation = await db.scalar(
+        select(BlockRecommendation).where(BlockRecommendation.domain == normalized)
+    )
     if recommendation is None:
         raise HTTPException(status_code=404, detail="Approval not found")
     return _recommendation_response(recommendation)
@@ -315,20 +391,26 @@ async def apply_approval(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    recommendation = await db.scalar(select(BlockRecommendation).where(BlockRecommendation.domain == normalized))
+    recommendation = await db.scalar(
+        select(BlockRecommendation).where(BlockRecommendation.domain == normalized)
+    )
     if recommendation is None:
         raise HTTPException(status_code=404, detail="Approval not found")
     assessment = await _find_recommendation_assessment(db, normalized)
 
     if assessment.status not in {"approved", "blocked", "failed"}:
-        raise HTTPException(status_code=409, detail="Only approved recommendations can be applied")
+        raise HTTPException(
+            status_code=409, detail="Only approved recommendations can be applied"
+        )
 
     if assessment.status == "blocked":
         result = BlockDomainResult(already_present=True)
         detail = "Domain was already applied; no Pi-hole mutation was attempted"
     else:
         try:
-            result = await client.add_block_domain(normalized, comment=recommendation.reason)
+            result = await client.add_block_domain(
+                normalized, comment=recommendation.reason
+            )
         except PiholeClientError as exc:
             assessment.status = "failed"
             audit = ApprovalAudit(
@@ -340,10 +422,16 @@ async def apply_approval(
             db.add(audit)
             await db.commit()
             await db.refresh(audit)
-            raise HTTPException(status_code=502, detail="Failed to apply block to Pi-hole") from exc
+            raise HTTPException(
+                status_code=502, detail="Failed to apply block to Pi-hole"
+            ) from exc
 
         assessment.status = "blocked"
-        detail = "Domain was already present in Pi-hole" if result.already_present else "Domain was added to Pi-hole"
+        detail = (
+            "Domain was already present in Pi-hole"
+            if result.already_present
+            else "Domain was added to Pi-hole"
+        )
 
     audit = ApprovalAudit(
         assessment_id=assessment.id,
@@ -377,7 +465,9 @@ async def remove_approval(
         normalized = normalize_domain(domain)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    recommendation = await db.scalar(select(BlockRecommendation).where(BlockRecommendation.domain == normalized))
+    recommendation = await db.scalar(
+        select(BlockRecommendation).where(BlockRecommendation.domain == normalized)
+    )
     if recommendation is None:
         raise HTTPException(status_code=404, detail="Approval not found")
     await db.delete(recommendation)
@@ -402,19 +492,33 @@ async def list_audit(
     if action:
         conditions.append(ApprovalAudit.action == action)
     count_query = select(func.count(ApprovalAudit.id))
-    query = select(ApprovalAudit).order_by(ApprovalAudit.created_at.desc(), ApprovalAudit.id.desc())
+    query = select(ApprovalAudit).order_by(
+        ApprovalAudit.created_at.desc(), ApprovalAudit.id.desc()
+    )
     if conditions:
         criterion = and_(*conditions)
         count_query = count_query.where(criterion)
         query = query.where(criterion)
     total = int((await db.scalar(count_query)) or 0)
-    rows = (await db.execute(query.offset((page - 1) * page_size).limit(page_size))).scalars().all()
+    rows = (
+        (await db.execute(query.offset((page - 1) * page_size).limit(page_size)))
+        .scalars()
+        .all()
+    )
     items = [AuditEntry.model_validate(entry) for entry in rows]
-    return AuditList(items=items, total=total, page=page, page_size=page_size, pages=_page_count(total, page_size))
+    return AuditList(
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        pages=_page_count(total, page_size),
+    )
 
 
 @router.get("/audit/{audit_id}", response_model=AuditEntry, tags=["audit"])
-async def get_audit(audit_id: int, db: DbSession, _auth: Protected, _rate: RateLimited) -> AuditEntry:
+async def get_audit(
+    audit_id: int, db: DbSession, _auth: Protected, _rate: RateLimited
+) -> AuditEntry:
     """Return one audit entry by id."""
     entry = await db.get(ApprovalAudit, audit_id)
     if entry is None:

@@ -67,12 +67,16 @@ class FakeSession:
 class FakePiholeClient:
     """Mock Pi-hole client for block-application route tests."""
 
-    def __init__(self, result: BlockDomainResult | None = None, error: Exception | None = None) -> None:
+    def __init__(
+        self, result: BlockDomainResult | None = None, error: Exception | None = None
+    ) -> None:
         self.result = result or BlockDomainResult()
         self.error = error
         self.calls: list[tuple[str, str | None]] = []
 
-    async def add_block_domain(self, domain: str, comment: str | None = None) -> BlockDomainResult:
+    async def add_block_domain(
+        self, domain: str, comment: str | None = None
+    ) -> BlockDomainResult:
         """Return a configured result and record the mutation request."""
         self.calls.append((domain, comment))
         if self.error is not None:
@@ -131,7 +135,9 @@ def test_assessments_are_paginated(api_app: FastAPI) -> None:
 
 def test_invalid_approval_request_is_rejected(api_app: FastAPI) -> None:
     """Approval routes reject a body whose action targets another operation."""
-    response = TestClient(api_app).post("/assessments/1/approve", json={"action": "reject"})
+    response = TestClient(api_app).post(
+        "/assessments/1/approve", json={"action": "reject"}
+    )
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Request action must be 'approve'"
@@ -139,12 +145,16 @@ def test_invalid_approval_request_is_rejected(api_app: FastAPI) -> None:
 
 def test_invalid_approval_action_fails_schema_validation(api_app: FastAPI) -> None:
     """Approval requests only accept the documented action literals."""
-    response = TestClient(api_app).post("/assessments/1/reject", json={"action": "delete"})
+    response = TestClient(api_app).post(
+        "/assessments/1/reject", json={"action": "delete"}
+    )
 
     assert response.status_code == 422
 
 
-def test_api_key_protects_assessment_listing(api_app: FastAPI, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_api_key_protects_assessment_listing(
+    api_app: FastAPI, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Configured API keys protect routes while preserving successful access."""
     monkeypatch.setenv("PIHOLE_API_KEY", "test-key")
     client = TestClient(api_app)
@@ -204,7 +214,9 @@ def test_apply_approval_mutates_pihole_and_records_audit() -> None:
     """A successful Pi-hole mutation marks the assessment blocked and audits it."""
     app, session, client = _application_app()
 
-    response = TestClient(app).post("/approvals/EXAMPLE.com/apply", headers={"X-User": "alice"})
+    response = TestClient(app).post(
+        "/approvals/EXAMPLE.com/apply", headers={"X-User": "alice"}
+    )
 
     assert response.status_code == 200
     assert response.json()["status"] == "blocked"

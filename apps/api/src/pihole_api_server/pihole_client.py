@@ -22,7 +22,9 @@ class BlockDomainResult:
 class PiholeClient:
     """Minimal Pi-hole v6 client for approved block mutations."""
 
-    def __init__(self, base_url: str, api_token: str | None = None, timeout: float = 10.0) -> None:
+    def __init__(
+        self, base_url: str, api_token: str | None = None, timeout: float = 10.0
+    ) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_token = api_token
         self.timeout = timeout
@@ -50,7 +52,9 @@ class PiholeClient:
             headers["X-FTL-SID"] = self.api_token
         return headers
 
-    async def add_block_domain(self, domain: str, comment: str | None = None) -> BlockDomainResult:
+    async def add_block_domain(
+        self, domain: str, comment: str | None = None
+    ) -> BlockDomainResult:
         """Ensure ``domain`` exists in Pi-hole's exact deny list.
 
         The read-before-write makes retries idempotent. Pi-hole versions that
@@ -62,7 +66,9 @@ class PiholeClient:
         params = {"auth": self.api_token} if self.api_token else None
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
-                existing_response = await client.get(url, headers=self._headers(), params=params)
+                existing_response = await client.get(
+                    url, headers=self._headers(), params=params
+                )
                 if existing_response.status_code == 200:
                     existing = existing_response.json()
                     if self._contains_domain(existing, domain):
@@ -73,14 +79,20 @@ class PiholeClient:
                 payload: dict[str, object] = {"domain": domain}
                 if comment:
                     payload["comment"] = comment
-                response = await client.post(url, headers=self._headers(), params=params, json=payload)
-                if response.status_code in {400, 409} and self._is_duplicate_response(response):
+                response = await client.post(
+                    url, headers=self._headers(), params=params, json=payload
+                )
+                if response.status_code in {400, 409} and self._is_duplicate_response(
+                    response
+                ):
                     return BlockDomainResult(already_present=True)
                 response.raise_for_status()
         except httpx.HTTPError as exc:
             raise PiholeClientError(f"Pi-hole block mutation failed: {exc}") from exc
         except (TypeError, ValueError) as exc:
-            raise PiholeClientError(f"Pi-hole returned an invalid response: {exc}") from exc
+            raise PiholeClientError(
+                f"Pi-hole returned an invalid response: {exc}"
+            ) from exc
 
         return BlockDomainResult()
 
@@ -88,10 +100,14 @@ class PiholeClient:
     def _contains_domain(payload: object, domain: str) -> bool:
         """Recognize domain-list response shapes returned by Pi-hole v6."""
         if isinstance(payload, list):
-            return any(PiholeClient._domain_from_item(item) == domain for item in payload)
+            return any(
+                PiholeClient._domain_from_item(item) == domain for item in payload
+            )
         if isinstance(payload, dict):
             for key in ("data", "domains", "items"):
-                if key in payload and PiholeClient._contains_domain(payload[key], domain):
+                if key in payload and PiholeClient._contains_domain(
+                    payload[key], domain
+                ):
                     return True
             return PiholeClient._domain_from_item(payload) == domain
         return False
