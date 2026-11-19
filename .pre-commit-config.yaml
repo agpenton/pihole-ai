@@ -1,0 +1,27 @@
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.0
+    hooks:
+      - id: gitleaks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+  - repo: https://github.com/psf/black
+    rev: 26.10.1
+    hooks:
+      - id: black
+  - repo: https://github.com/thoughtworks/talisman
+    rev: 'v1.37.0'  # Update me!
+    hooks:
+      # both pre-commit and pre-push supported
+      # -   id: talisman-push
+      - id: talisman-commit
+  - repo: https://github.com/opengrep/opengrep
+    rev: v2.0.0  # Or the latest tagged version of opengrep
+    hooks:
+      - id: semgrep
+        # Optional: customize config or rulesets via args
+        # args: ['--config', 'auto']

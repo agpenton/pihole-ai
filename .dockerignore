@@ -1,0 +1,14 @@
+.git
+.github
+.idea
+.venv
+**/.venv
+__pycache__
+**/__pycache__
+.mypy_cache
+**/.mypy_cache
+.pytest_cache
+**/.pytest_cache
+.ruff_cache
+**/.ruff_cache
+*.py[cod]

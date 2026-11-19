@@ -1,0 +1,77 @@
+[project]
+name = "pihole-ai"
+version = "0.1.0"
+description = "Pi-hole AI-powered DNS security analysis monorepo"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.12"
+authors = [
+    { name = "Pi-hole AI Team" },
+]
+
+dependencies = [
+    "pihole-common",
+    "pihole-collector",
+    "pihole-analyzer",
+    "pihole-llm-gateway",
+    "pihole-api-server",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.9.0",
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.25.0",
+    "pytest-cov>=6.0.0",
+    "mypy>=1.15.0",
+    "types-requests>=2.32.0",
+    "sqlalchemy[mypy]",
+    "alembic>=1.14.0",
+]
+
+[tool.uv.sources]
+pihole-common = { workspace = true }
+pihole-collector = { workspace = true }
+pihole-analyzer = { workspace = true }
+pihole-llm-gateway = { workspace = true }
+pihole-api-server = { workspace = true }
+
+[tool.uv.workspace]
+members = [
+    "packages/pihole_common",
+    "apps/collector",
+    "apps/analyzer",
+    "apps/llm-gateway",
+    "apps/api",
+]
+
+[tool.pytest.ini_options]
+addopts = "--import-mode=importlib"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "RUF"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["pihole_common", "pihole_collector", "pihole_analyzer", "pihole_llm_gateway", "pihole_api_server"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_unreachable = true
+
+# Workspace root — no build-system needed; members define their own

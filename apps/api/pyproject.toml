@@ -1,0 +1,41 @@
+[project]
+name = "pihole-api-server"
+version = "0.1.0"
+description = "API server for pihole-ai — FastAPI endpoints for assessments, approvals, and audit"
+requires-python = ">=3.12"
+dependencies = [
+    "pihole-common",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "httpx>=0.27.0",
+    "prometheus-client>=0.20.0",
+]
+
+[project.scripts]
+pihole-api-server = "pihole_api_server.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pihole_api_server"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = ["src", "../../packages/pihole_common/src"]
+packages = ["pihole_api_server"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

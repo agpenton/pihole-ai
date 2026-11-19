@@ -1,0 +1,30 @@
+[project]
+name = "pihole-collector"
+version = "0.1.0"
+description = "DNS Collector — polls Pi-hole v6 API, normalizes/deduplicates events, stores in PostgreSQL"
+requires-python = ">=3.12"
+dependencies = [
+    "pihole-common",
+    "httpx>=0.28.0",
+    "tenacity>=9.0.0",
+    "click>=8.1.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pihole_collector"]
+
+[project.scripts]
+pihole-collector = "pihole_collector.__main__:main"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = "src"
