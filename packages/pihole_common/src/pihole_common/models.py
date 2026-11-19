@@ -295,3 +295,19 @@ class ApprovalAudit(Base):
         nullable=False,
         default=_utcnow,
     )
+
+
+class CollectorState(Base):
+    """Durable state for incremental collectors."""
+
+    __tablename__ = "collector_state"
+
+    collector_name: Mapped[str] = mapped_column(String(100), primary_key=True)
+    last_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=_utcnow,
+        server_default=text("CURRENT_TIMESTAMP"),
+        onupdate=_utcnow,
+    )

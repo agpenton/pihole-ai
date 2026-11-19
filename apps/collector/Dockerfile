@@ -12,7 +12,10 @@ WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /app/packages /app/packages
 COPY --from=builder /app/apps /app/apps
-RUN groupadd --gid 1000 appuser && useradd --uid 1000 --gid 1000 --create-home appuser
-USER appuser
+# Alembic files must be in the runtime image for the migration Job.
+COPY alembic.ini /app/alembic.ini
+COPY migrations/ /app/migrations/
+RUN groupadd --gid 10001 appuser && useradd --uid 10001 --gid 10001 --create-home appuser
+USER 10001:10001
 ENV PATH="/app/.venv/bin:$PATH"
 ENTRYPOINT ["python", "-m", "pihole_collector"]

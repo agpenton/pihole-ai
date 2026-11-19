@@ -1,9 +1,14 @@
-"""Async SQLAlchemy database engine and session factory."""
+"""Async SQLAlchemy engine and session factory.
+
+Database schema lifecycle is owned by Alembic migrations. Application startup
+only verifies connectivity; it must never create or mutate tables implicitly.
+"""
 
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
@@ -14,13 +19,14 @@ class Base(DeclarativeBase):
     """Base class for all ORM models."""
 
 
+_settings = get_settings()
 _engine = create_async_engine(
-    get_settings().database.url,
-    pool_size=get_settings().database.pool_size,
-    max_overflow=get_settings().database.max_overflow,
-    pool_timeout=get_settings().database.pool_timeout,
-    pool_recycle=get_settings().database.pool_recycle,
-    echo=get_settings().database.echo,
+    _settings.database.url,
+    pool_size=_settings.database.pool_size,
+    max_overflow=_settings.database.max_overflow,
+    pool_timeout=_settings.database.pool_timeout,
+    pool_recycle=_settings.database.pool_recycle,
+    echo=_settings.database.echo,
 )
 
 async_session_factory = async_sessionmaker(
@@ -31,7 +37,7 @@ async_session_factory = async_sessionmaker(
 
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Dependency for FastAPI: yield an async database session."""
+    """Yield an async database session for application dependencies."""
     async with async_session_factory() as session:
         try:
             yield session
@@ -41,11 +47,15 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_db() -> None:
-    """Create all tables. Use during application startup."""
-    async with _engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    """Verify database connectivity; schema changes are exclusively Alembic-managed.
+
+    Kept under the existing function name to avoid breaking application startup
+    imports. This function deliberately does not call ``Base.metadata.create_all``.
+    """
+    async with _engine.connect() as connection:
+        await connection.execute(text("SELECT 1"))
 
 
 async def close_db() -> None:
-    """Dispose of the engine. Use during application shutdown."""
+    """Dispose of the async engine during application shutdown."""
     await _engine.dispose()
